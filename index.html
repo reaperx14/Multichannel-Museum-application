@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Museum dex — Prehistoric Hunter</title>
+  <meta name="description" content="Explore the natural history museum like never before! Catch dinosaurs, fossils and ancient plants in this epic prehistoric adventure." />
+  <meta name="theme-color" content="#1A0E05" />
+
+  <!-- Preconnect for font performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css?v=7" />
+</head>
+<body>
+
+  <!-- Premium Device Frame for Browser Preview -->
+  <div class="phone-container">
+    <div class="phone-reflection"></div>
+    <div id="app">
+      <!-- All screen content is injected here by JS -->
+      <div id="screen" role="main"></div>
+
+      <!-- Bottom Navigation (shown on main screens) -->
+      <nav id="bottom-nav" class="hidden" role="navigation" aria-label="Main Navigation">
+        <button class="nav-item" id="nav-home" data-target="home" aria-label="Home">
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Home</span>
+        </button>
+        <button class="nav-item" id="nav-hunt" data-target="hunt" aria-label="Hunt Zone">
+          <span class="nav-icon">🔍</span>
+          <span class="nav-label">Hunt</span>
+        </button>
+        <button class="nav-item" id="nav-index" data-target="index" aria-label="My Collection">
+          <span class="nav-icon">📖</span>
+          <span class="nav-label">Index</span>
+        </button>
+        <button class="nav-item" id="nav-achievements" data-target="achievements" aria-label="Achievements">
+          <span class="nav-icon">🏆</span>
+          <span class="nav-label">Awards</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Load data first, then the app logic -->
+  <script src="data.js?v=7"></script>
+  <script src="app.js?v=7"></script>
+
+</body>
+</html>
