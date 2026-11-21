@@ -4,7 +4,9 @@
    Single-scroll detail | Real photos | SVG World Map | 34 specimens
    ================================================================ */
 
-let MAP_DATA = null;
+if (typeof window !== 'undefined' && !window.MAP_DATA) {
+  window.MAP_DATA = null;
+}
 
 // ================================================================
 // STATE
@@ -141,76 +143,177 @@ function showAchievementToast(ach) {
 }
 
 // ================================================================
-// SVG WORLD MAP — Natural Earth simplified continent outlines
-// Viewbox 1009×665, matching Natural Earth projection used on Wikipedia
+// SVG WORLD MAP — Natural Earth Miller Projection (960×500)
+// Complete Real Continents: North America, South America, Europe,
+// Africa, Asia, Australia, Antarctica.
+// Highlights ONLY the continent(s) where the animal/plant is found.
 // ================================================================
-function getWorldMapSVG(continents, color) {
+function getWorldMapSVG(continents, color = '#4ADE80', locationText = '') {
   const highlighted = Array.isArray(continents) ? continents : [continents];
   const isGlobal    = highlighted.includes('global');
 
-  // Map specimen continent tags to SVG path keys
-  const CONTINENT_MAP = {
-    'north-america':   ['north-america', 'greenland'],
-    'south-america':   ['south-america'],
-    'europe':          ['europe'],
-    'africa':          ['africa'],
-    'asia':            ['asia', 'south-east-asia'],
-    'australia':       ['australia'],
-    'antarctica':      ['antarctica'],
-    'global':          ['north-america', 'greenland', 'south-america', 'europe', 'africa', 'asia', 'south-east-asia', 'australia', 'antarctica']
+  // Continental keys recognized in map dataset
+  const ALL_CONTINENTS = [
+    'north-america',
+    'south-america',
+    'europe',
+    'africa',
+    'asia',
+    'australia',
+    'antarctica'
+  ];
+
+  const CONTINENT_NAMES = {
+    'north-america': 'North America',
+    'south-america': 'South America',
+    'europe':        'Europe',
+    'africa':        'Africa',
+    'asia':          'Asia',
+    'australia':     'Australia & Oceania',
+    'antarctica':    'Antarctica'
   };
 
   const toHighlight = new Set();
-  for (const c of highlighted) {
-    (CONTINENT_MAP[c] || []).forEach(k => toHighlight.add(k));
-  }
   if (isGlobal) {
-    Object.keys(CONTINENT_MAP).forEach(k => {
-      if (k !== 'global') CONTINENT_MAP[k].forEach(p => toHighlight.add(p));
-    });
+    ALL_CONTINENTS.forEach(k => toHighlight.add(k));
+  } else {
+    for (const c of highlighted) {
+      if (ALL_CONTINENTS.includes(c)) toHighlight.add(c);
+    }
   }
 
-  // Use the loaded high-resolution map data if available, otherwise fall back to simple mockup coordinates
-  const pathsData = MAP_DATA || {
-    'north-america': 'M 100,50 L 250,50 L 250,200 L 190,250 Z',
-    'greenland': 'M 260,20 L 300,20 L 300,50 Z',
-    'south-america': 'M 220,260 L 280,260 L 250,420 Z',
-    'europe': 'M 350,40 L 450,40 L 450,90 Z',
-    'africa': 'M 350,110 L 480,110 L 480,320 L 380,320 Z',
-    'asia': 'M 460,30 L 790,30 L 740,180 L 540,180 Z',
-    'south-east-asia': 'M 720,180 L 760,210 Z',
-    'australia': 'M 630,250 L 780,250 L 760,360 L 670,340 Z',
-    'antarctica': 'M 80,600 Q 505,585 930,600 L 930,625 Q 505,610 80,625 Z'
+  // Pre-calculated representative centroid coords for location pins
+  const PIN_CENTROIDS = {
+    'north-america': { x: 235, y: 150, name: 'North America' },
+    'south-america': { x: 330, y: 300, name: 'South America' },
+    'europe':        { x: 505, y: 130, name: 'Europe' },
+    'africa':        { x: 515, y: 250, name: 'Africa' },
+    'asia':          { x: 695, y: 165, name: 'Asia' },
+    'australia':     { x: 815, y: 330, name: 'Australia' },
+    'antarctica':    { x: 500, y: 435, name: 'Antarctica' }
   };
 
-  const paths = Object.entries(pathsData).map(([id, d]) => {
+  // Safe data lookup: prefer synchronously loaded window.MAP_DATA
+  const pathsData = (typeof MAP_DATA !== 'undefined' && MAP_DATA) ? MAP_DATA :
+                    (typeof window !== 'undefined' && window.MAP_DATA) ? window.MAP_DATA : {};
+
+  // Render continent paths with high contrast for inactive and vivid glow for active
+  const paths = ALL_CONTINENTS.map(id => {
+    const d = pathsData[id];
+    if (!d) return '';
     const lit = toHighlight.has(id);
     return `<path id="continent-${id}" d="${d}"
-      fill="${lit ? color : '#243447'}"
-      fill-opacity="${lit ? '1.0' : '0.85'}"
-      stroke="${lit ? color : 'rgba(255,255,255,0.18)'}"
-      stroke-width="${lit ? '2.0' : '0.8'}"
-      ${lit ? `filter="url(#glow)" style="transition:all 0.3s ease"` : ''}
+      fill="${lit ? color : '#233A56'}"
+      fill-opacity="${lit ? '0.96' : '0.88'}"
+      stroke="${lit ? '#FFFFFF' : 'rgba(255,255,255,0.22)'}"
+      stroke-width="${lit ? '2.0' : '0.85'}"
+      stroke-linejoin="round"
+      ${lit ? 'filter="url(#world-glow)" style="transition:fill 0.4s ease, filter 0.4s ease;"' : ''}
     />`;
   }).join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1010 666" preserveAspectRatio="xMidYMid meet" style="display:block">
+  // Pulsing location beacons on lit continents
+  const beaconPins = Array.from(toHighlight).map(id => {
+    const pt = PIN_CENTROIDS[id];
+    if (!pt) return '';
+    return `
+      <g class="map-pin-pulse" transform="translate(${pt.x}, ${pt.y})">
+        <circle r="7" fill="none" stroke="${color}" stroke-width="2.2" opacity="0.9">
+          <animate attributeName="r" values="5;26" dur="2.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.95;0" dur="2.2s" repeatCount="indefinite"/>
+        </circle>
+        <circle r="4.5" fill="#FFFFFF" stroke="${color}" stroke-width="2.5" filter="url(#pin-glow)"/>
+        <circle r="1.8" fill="${color}"/>
+      </g>
+    `;
+  }).join('\n');
+
+  // Summary badge text
+  let badgeLabel = 'Global Discovery';
+  if (isGlobal) {
+    badgeLabel = 'Found Worldwide';
+  } else {
+    const names = Array.from(toHighlight).map(k => CONTINENT_NAMES[k] || k);
+    if (names.length === 1) badgeLabel = names[0];
+    else if (names.length > 1) badgeLabel = names.slice(0, 2).join(', ') + (names.length > 2 ? ` +${names.length - 2}` : '');
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;">
     <defs>
-      <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <!-- Intense glowing filter for the highlighted continent -->
+      <filter id="world-glow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur1"/>
+        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur2"/>
+        <feMerge>
+          <feMergeNode in="blur2"/>
+          <feMergeNode in="blur1"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
       </filter>
-      <radialGradient id="oceanGrad" cx="50%" cy="50%" r="70%">
-        <stop offset="0%"   stop-color="#0E1E38"/>
-        <stop offset="100%" stop-color="#060F22"/>
+      <filter id="pin-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="pblur"/>
+        <feMerge>
+          <feMergeNode in="pblur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+      <!-- High-tech natural ocean gradient -->
+      <radialGradient id="oceanGrad" cx="50%" cy="45%" r="70%">
+        <stop offset="0%"   stop-color="#142842"/>
+        <stop offset="60%"  stop-color="#0D1D33"/>
+        <stop offset="100%" stop-color="#071224"/>
       </radialGradient>
+      <!-- Linear wave shimmer pattern -->
+      <pattern id="oceanGrid" width="48" height="48" patternUnits="userSpaceOnUse">
+        <path d="M 48 0 L 0 0 0 48" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+      </pattern>
     </defs>
-    <rect width="1010" height="666" fill="url(#oceanGrad)"/>
-    <!-- Grid lines for premium atlas feel -->
-    <line x1="0" y1="333" x2="1010" y2="333" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
-    <line x1="505" y1="0" x2="505" y2="666" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
-    ${paths}
-    <rect width="1010" height="666" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="2"/>
+
+    <!-- Deep Ocean Base -->
+    <rect width="960" height="500" fill="url(#oceanGrad)"/>
+    <rect width="960" height="500" fill="url(#oceanGrid)"/>
+
+    <!-- Graticules (Latitude & Longitude Atlas Lines) -->
+    <g stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4,4">
+      <line x1="0" y1="80" x2="960" y2="80"/>
+      <line x1="0" y1="420" x2="960" y2="420"/>
+      <line x1="0" y1="185" x2="960" y2="185"/>
+      <line x1="0" y1="315" x2="960" y2="315"/>
+      <line x1="240" y1="0" x2="240" y2="500"/>
+      <line x1="720" y1="0" x2="720" y2="500"/>
+    </g>
+    <!-- Equator and Prime Meridian -->
+    <line x1="0" y1="250" x2="960" y2="250" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" stroke-dasharray="6,4"/>
+    <line x1="480" y1="0" x2="480" y2="500" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" stroke-dasharray="6,4"/>
+
+    <!-- Continents -->
+    <g id="world-continents">
+      ${paths}
+    </g>
+
+    <!-- Animated Location Beacons -->
+    <g id="world-beacons">
+      ${beaconPins}
+    </g>
+
+    <!-- Top Floating Location Pill -->
+    <g transform="translate(18, 16)">
+      <rect width="210" height="32" rx="16" fill="rgba(8,18,34,0.85)" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+      <circle cx="16" cy="16" r="4.5" fill="${color}" filter="url(#pin-glow)"/>
+      <text x="28" y="20.5" font-family="'Nunito', sans-serif" font-size="12" font-weight="900" fill="#FFFFFF" letter-spacing="0.3">${badgeLabel}</text>
+    </g>
+
+    <!-- Bottom Legend -->
+    <g transform="translate(18, 474)">
+      <rect width="245" height="22" rx="11" fill="rgba(6,14,28,0.75)" stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+      <circle cx="14" cy="11" r="4" fill="${color}"/>
+      <text x="24" y="14.5" font-family="'Nunito', sans-serif" font-size="9.5" font-weight="800" fill="#E2E8F0">Specimen Habitat</text>
+      <circle cx="132" cy="11" r="4" fill="#233A56" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+      <text x="142" y="14.5" font-family="'Nunito', sans-serif" font-size="9.5" font-weight="700" fill="rgba(255,255,255,0.6)">Other Continents</text>
+    </g>
+
+    <!-- Outer Map Border Frame -->
+    <rect width="960" height="500" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>
   </svg>`;
 }
 
@@ -283,8 +386,8 @@ function showScreen(name, params={}) {
 /* ---- SPLASH ---- */
 function renderSplash() {
   const particles = Array.from({length:22},(_,i)=>{
-    const cols=['#F5A623','#4ECDC4','#A8E063','#C678DD'];
-    const sz=3+Math.random()*6;
+    const cols=['#D4A017','#E06A3B','#7FA76C','#C678DD'];
+    const sz=3+Math.random()*5;
     return `<div class="splash-particle" style="left:${Math.random()*100}%;width:${sz}px;height:${sz}px;background:${cols[i%cols.length]};--dur:${3+Math.random()*5}s;--del:${Math.random()*4}s"></div>`;
   }).join('');
   return `
@@ -297,12 +400,13 @@ function renderSplash() {
           <div class="splash-ring"></div>
           <span class="splash-main-emoji">🦕</span>
         </div>
-        <div class="splash-title">Museum dex</div>
+        <div class="splash-badge">NATURAL HISTORY MUSEUM</div>
+        <div class="splash-title">Museum Dex</div>
         <div class="splash-subtitle">Prehistoric Hunter</div>
       </div>
       <div class="splash-cta">
         <button class="btn btn-primary btn-lg" data-action="go-entry">🔍 Start Your Hunt!</button>
-        <div class="splash-tap-hint">Tap anywhere to begin</div>
+        <div class="splash-tap-hint">Tap anywhere to begin expedition</div>
       </div>
       <div class="splash-dinos" style="pointer-events:none">
         <span class="splash-dino" style="--dur:7s;--del:0s">🦖</span>
@@ -318,13 +422,14 @@ function renderEntry() {
   return `
     <div class="entry-screen anim-fade">
       <div class="entry-header">
-        <div class="entry-title">Welcome, Hunter!</div>
-        <div class="entry-subtitle">Scan the museum entry QR code<br>to begin your prehistoric adventure!</div>
+        <div class="entry-badge">EXHIBITION ADMISSION</div>
+        <div class="entry-title">Museum Check-In</div>
+        <div class="entry-subtitle">Scan the exhibit portal QR or enter with your explorer pass to begin!</div>
       </div>
       <div class="qr-frame">
         <div class="qr-inner">
           <div class="qr-scan-line"></div>
-          <span style="font-size:52px;position:relative;z-index:1">📱</span>
+          <span class="qr-center-icon">🏛️</span>
         </div>
         <div class="qr-corner qr-tl"></div>
         <div class="qr-corner qr-tr"></div>
@@ -333,8 +438,8 @@ function renderEntry() {
         <div class="qr-pulse"></div><div class="qr-pulse"></div><div class="qr-pulse"></div>
       </div>
       <div class="entry-actions">
-        <button class="btn btn-teal btn-full" data-action="go-profile">✅ Enter Museum</button>
-        <div class="entry-demo-hint">Demo mode — tap to enter without scanning</div>
+        <button class="btn btn-primary btn-full btn-lg" data-action="go-profile">🎫 Enter Exhibition</button>
+        <div class="entry-demo-hint">Demo Mode · Tap to enter without physical QR</div>
       </div>
     </div>`;
 }
@@ -343,25 +448,35 @@ function renderEntry() {
 function renderProfile() {
   const avatarBtns = AVATARS.map((av,i)=>`
     <button class="avatar-btn ${i===state.avatar?'active':''}"
-            data-action="pick-avatar" data-i="${i}" id="av-${i}">${av}</button>`).join('');
+            data-action="pick-avatar" data-i="${i}" id="av-${i}">
+      <span class="avatar-emoji">${av}</span>
+    </button>`).join('');
   return `
     <div class="profile-screen anim-fade">
       <div class="profile-header">
-        <div class="profile-title">Create Your Hunter 🦕</div>
-        <div class="profile-subtitle">Who's on this prehistoric adventure?</div>
+        <div class="profile-badge">HUNTER PASSPORT</div>
+        <div class="profile-title">Explorer Profile</div>
+        <div class="profile-subtitle">Personalize your museum dex and expedition badge</div>
       </div>
-      <div>
-        <span class="section-label">Pick Your Explorer</span>
-        <div class="avatar-grid" id="avatar-grid">${avatarBtns}</div>
+      <div class="profile-card-group">
+        <div class="profile-section-card">
+          <span class="section-label">Choose Avatar</span>
+          <div class="avatar-grid" id="avatar-grid">${avatarBtns}</div>
+        </div>
+        <div class="profile-section-card">
+          <span class="section-label">Explorer Name</span>
+          <div class="name-input-wrap">
+            <span class="name-input-icon">👤</span>
+            <input class="name-input" id="name-input" type="text" maxlength="20"
+                   placeholder="Enter your hunter name…" value="${state.name}"
+                   autocomplete="off" autocorrect="off" spellcheck="false"/>
+          </div>
+        </div>
       </div>
-      <div>
-        <span class="section-label">Hunter Name</span>
-        <input class="name-input" id="name-input" type="text" maxlength="20"
-               placeholder="Enter your name…" value="${state.name}"
-               autocomplete="off" autocorrect="off" spellcheck="false"/>
+      <div class="profile-action-group">
+        <button class="btn btn-primary btn-full btn-lg" data-action="start-adventure">Start Adventure →</button>
+        ${state.catches.length>0?`<p class="profile-resume-note">Welcome back! You have <strong>${state.catches.length}</strong> specimens discovered.</p>`:''}
       </div>
-      <button class="btn btn-primary btn-full" data-action="start-adventure">🦕 Start Adventure!</button>
-      ${state.catches.length>0?`<p style="text-align:center;font-size:12px;color:var(--text-muted)">You already have ${state.catches.length} specimens! Continuing your adventure…</p>`:''}
     </div>`;
 }
 function initProfileHandlers() {
@@ -392,13 +507,17 @@ function renderHome() {
 
       <!-- Museum Hero Header -->
       <div class="home-museum-header">
-        <div class="home-torches">
-          <span class="home-torch left-torch">&#x1F525;</span>
-          <span class="home-torch right-torch">&#x1F525;</span>
+        <div class="home-top-bar">
+          <div class="museum-brand-pill">
+            <span class="museum-brand-icon">🏛️</span>
+            <span class="museum-brand-text">MUSEUM DEX</span>
+          </div>
+          <button class="reset-btn" data-action="reset">↺ Reset</button>
         </div>
+
         <div class="home-museum-arch">
           <div class="home-arch-inner">
-            <div class="home-greeting">Welcome back, Explorer!</div>
+            <div class="home-greeting">PREHISTORIC EXPEDITION</div>
             <div class="home-hunter-name">
               <span class="home-avatar">${AVATARS[state.avatar]}</span>
               <span>${state.name||'Hunter'}!</span>
@@ -409,76 +528,95 @@ function renderHome() {
             </div>
           </div>
         </div>
-        <button class="reset-btn" data-action="reset">&#x21BA; Reset</button>
       </div>
 
-      <!-- XP Bar -->
-      <div class="home-xp-section">
+      <!-- XP Bar Card -->
+      <div class="home-xp-card">
         <div class="xp-row">
-          <span class="xp-label">&#x1F3C6; Hunt XP</span>
+          <div class="xp-title-group">
+            <span class="xp-icon">⚡</span>
+            <span class="xp-label">Expedition XP</span>
+          </div>
           <span class="xp-val">${xp} XP</span>
         </div>
         <div class="xp-track"><div class="xp-fill" style="width:${xpPct}%"></div></div>
+        <div class="xp-sub-row">
+          <span>${nextRank ? `Next: ${nextRank.emoji} ${nextRank.name}` : 'Max Rank Reached!'}</span>
+          <span>${nextRank ? `${nextRank.minXP - xp} XP to level up` : 'Master Hunter'}</span>
+        </div>
       </div>
 
       <!-- Stats Row -->
       <div class="stats-row">
         <div class="stat-chip">
-          <div class="stat-icon">&#x1F3F9;</div>
+          <div class="stat-icon-wrap"><span class="stat-icon">🏹</span></div>
           <div class="stat-num">${state.catches.length}</div>
-          <div class="stat-lbl">Caught</div>
+          <div class="stat-lbl">Discovered</div>
         </div>
         <div class="stat-chip">
-          <div class="stat-icon">&#x2753;</div>
+          <div class="stat-icon-wrap"><span class="stat-icon">❓</span></div>
           <div class="stat-num">${TOTAL-state.catches.length}</div>
-          <div class="stat-lbl">Left</div>
+          <div class="stat-lbl">Remaining</div>
         </div>
         <div class="stat-chip">
-          <div class="stat-icon">&#x1F4DC;</div>
+          <div class="stat-icon-wrap"><span class="stat-icon">📜</span></div>
           <div class="stat-num">${Math.round(state.catches.length/TOTAL*100)}%</div>
-          <div class="stat-lbl">Done</div>
+          <div class="stat-lbl">Explored</div>
         </div>
       </div>
 
       <!-- Gallery Banners -->
-      <div class="home-gallery-label">&#x1F3DB;&#xFE0F; Museum Galleries</div>
+      <div class="home-gallery-label">
+        <span>🏛️ Museum Galleries</span>
+        <span class="gallery-count-badge">3 Halls</span>
+      </div>
       <div class="cat-cards">
 
         <div class="cat-card cat-fossil anim-right s1" data-action="go-hunt" data-cat="fossil">
-          <div class="cat-museum-label">Gallery I</div>
-          <div class="cat-tag">&#x1F9B4; Fossils</div>
-          <div class="cat-name">Fossil Finds</div>
-          <div class="cat-prog-text">${fc} of ${FOSSIL_IDS.length} unearthed</div>
+          <div class="cat-card-header">
+            <div class="cat-tag">🦴 Fossils</div>
+            <div class="cat-museum-label">Hall I</div>
+          </div>
+          <div class="cat-name">Fossil Hall</div>
+          <div class="cat-prog-text">${fc} of ${FOSSIL_IDS.length} unearthed · ${Math.round(fc/FOSSIL_IDS.length*100)}%</div>
           <div class="cat-prog-bar"><div class="cat-prog-fill fill-fossil" style="width:${fc/FOSSIL_IDS.length*100}%"></div></div>
-          <div class="cat-card-art">&#x1F9B4;&#x1F9B4;</div>
+          <div class="cat-card-art">🦴</div>
+          <div class="cat-explore-hint">Explore Hall <span>→</span></div>
         </div>
 
         <div class="cat-card cat-dino anim-right s2" data-action="go-hunt" data-cat="dinosaur">
-          <div class="cat-museum-label">Gallery II</div>
-          <div class="cat-tag">&#x1F996; Dinosaurs</div>
-          <div class="cat-name">Dino Hunt</div>
-          <div class="cat-prog-text">${dc} of ${DINO_IDS.length} discovered</div>
+          <div class="cat-card-header">
+            <div class="cat-tag">🦖 Dinosaurs</div>
+            <div class="cat-museum-label">Hall II</div>
+          </div>
+          <div class="cat-name">Dino Safari</div>
+          <div class="cat-prog-text">${dc} of ${DINO_IDS.length} discovered · ${Math.round(dc/DINO_IDS.length*100)}%</div>
           <div class="cat-prog-bar"><div class="cat-prog-fill fill-dino" style="width:${dc/DINO_IDS.length*100}%"></div></div>
-          <div class="cat-card-art">&#x1F996;&#x1F995;</div>
+          <div class="cat-card-art">🦖</div>
+          <div class="cat-explore-hint">Explore Hall <span>→</span></div>
         </div>
 
         <div class="cat-card cat-plant anim-right s3" data-action="go-hunt" data-cat="plant">
-          <div class="cat-museum-label">Gallery III</div>
-          <div class="cat-tag">&#x1F33F; Ancient Gardens</div>
+          <div class="cat-card-header">
+            <div class="cat-tag">🌿 Ancient Flora</div>
+            <div class="cat-museum-label">Hall III</div>
+          </div>
           <div class="cat-name">Ancient Gardens</div>
-          <div class="cat-prog-text">${pc} of ${PLANT_IDS.length} gathered</div>
+          <div class="cat-prog-text">${pc} of ${PLANT_IDS.length} gathered · ${Math.round(pc/PLANT_IDS.length*100)}%</div>
           <div class="cat-prog-bar"><div class="cat-prog-fill fill-plant" style="width:${pc/PLANT_IDS.length*100}%"></div></div>
-          <div class="cat-card-art">&#x1F333;&#x1F340;</div>
+          <div class="cat-card-art">🌿</div>
+          <div class="cat-explore-hint">Explore Hall <span>→</span></div>
         </div>
 
       </div>
 
       <div class="hunt-cta-card anim-up s4" data-action="go-hunt" data-cat="all">
-        <div>
-          <div class="hunt-cta-title">&#x1F50D; Hunt All Specimens</div>
-          <div class="hunt-cta-sub">Find all ${TOTAL} prehistoric wonders!</div>
+        <div class="hunt-cta-icon-box">🔍</div>
+        <div class="hunt-cta-info">
+          <div class="hunt-cta-title">Hunt All Specimens</div>
+          <div class="hunt-cta-sub">Find all ${TOTAL} prehistoric wonders in the museum!</div>
         </div>
-        <div class="hunt-cta-arrow">&#x2192;</div>
+        <div class="hunt-cta-arrow">→</div>
       </div>
     </div>`;
 }
@@ -501,14 +639,22 @@ function renderHunt() {
       <div class="specimen-card ${caught?'caught':''} anim-up"
            style="--cf:${s.gradientFrom};--ct:${s.gradientTo};animation-delay:${i*0.03}s"
            data-action="${caught?'view-detail':'open-scanner'}" data-id="${s.id}">
-        ${caught?'<div class="caught-tick">✅</div>':''}
-        <div class="sp-emoji">${s.emoji}</div>
-        <div class="sp-name">${s.name}</div>
-        <div class="sp-category">${s.category}</div>
-        <div class="rarity-badge ${rarityClass(s.rarity)}" style="position:relative">${rarityIcon(s.rarity)} ${rarityLabel(s.rarity)}</div>
-        ${caught
-          ? `<div class="caught-chip">✨ Caught!</div>`
-          : `<button class="scan-btn-mini" data-action="open-scanner" data-id="${s.id}">📷 Scan to Catch</button>`}
+        ${caught?'<div class="caught-tick">✓</div>':''}
+        <div class="sp-card-body">
+          <div class="sp-emoji-wrap">
+            <div class="sp-emoji">${s.emoji}</div>
+          </div>
+          <div class="sp-info">
+            <div class="sp-name">${s.name}</div>
+            <div class="sp-category">${s.category}</div>
+          </div>
+          <div class="rarity-badge ${rarityClass(s.rarity)}">${rarityIcon(s.rarity)} ${rarityLabel(s.rarity)}</div>
+        </div>
+        <div class="sp-action-wrap">
+          ${caught
+            ? `<div class="caught-chip">✨ Caught!</div>`
+            : `<button class="scan-btn-mini" data-action="open-scanner" data-id="${s.id}">📷 Scan</button>`}
+        </div>
       </div>`;
   }).join('');
   return `
@@ -585,6 +731,7 @@ function initParticles(id) {
 /* ---- INDEX ---- */
 function renderIndex() {
   const tab=state.indexTab;
+  const pct=Math.round(state.catches.length/TOTAL*100);
   const tabs=[
     {id:'all',label:'🌟 All'},
     {id:'fossil',label:'🦴 Fossils'},
@@ -600,18 +747,26 @@ function renderIndex() {
       <div class="coll-card ${caught?'caught':'locked'} anim-up"
            style="${caught?`--cf:${s.gradientFrom};--ct:${s.gradientTo};`:''}animation-delay:${i*0.02}s"
            data-action="${caught?'view-detail':'locked-tap'}" data-id="${s.id}">
-        <div class="coll-emoji">${s.emoji}</div>
-        <div class="coll-name">${caught?s.name:'???'}</div>
+        <div class="coll-emoji-wrap">
+          <div class="coll-emoji">${s.emoji}</div>
+        </div>
+        <div class="coll-name">${caught?s.name:'Unknown'}</div>
         ${caught
-          ? `<div class="rarity-badge ${rarityClass(s.rarity)}" style="font-size:8px;padding:2px 7px">${rarityLabel(s.rarity)}</div>`
-          : `<div class="lock-overlay">🔒</div>`}
+          ? `<div class="rarity-badge ${rarityClass(s.rarity)} coll-rarity">${rarityLabel(s.rarity)}</div>`
+          : `<div class="lock-overlay"><span class="lock-icon">🔒</span></div>`}
       </div>`;
   }).join('');
   return `
     <div class="index-screen anim-fade">
       <div class="index-header">
-        <div class="index-title">📖 Prehistoric Index</div>
-        <div class="index-subtitle">${state.catches.length} of ${TOTAL} specimens discovered</div>
+        <div class="index-title-row">
+          <div class="index-title">📖 Prehistoric Index</div>
+          <div class="index-count-pill">${state.catches.length}/${TOTAL}</div>
+        </div>
+        <div class="index-subtitle">${state.catches.length} of ${TOTAL} specimens discovered (${pct}%)</div>
+        <div class="index-progress-track">
+          <div class="index-progress-fill" style="width:${pct}%"></div>
+        </div>
       </div>
       <div class="index-tabs">${tabsHtml}</div>
       <div class="collection-grid">${cardsHtml}</div>
@@ -634,7 +789,7 @@ function renderDetail(id) {
     </div>`).join('');
 
   // World map
-  const mapSVG = getWorldMapSVG(s.continents, hiColor);
+  const mapSVG = getWorldMapSVG(s.continents, hiColor, s.location);
 
   return `
     <div class="detail-screen anim-up">
@@ -722,13 +877,17 @@ function renderDetail(id) {
 /* ---- ACHIEVEMENTS ---- */
 function renderAchievements() {
   const unlockCount=state.achievements.length;
+  const pct=Math.round(unlockCount/ACHIEVEMENTS.length*100);
   const achHtml=ACHIEVEMENTS.map(ach=>{
     const unlocked=state.achievements.includes(ach.id);
     return `
       <div class="achiev-card ${unlocked?'unlocked':'locked'}">
         <div class="ach-icon-wrap">${ach.emoji}</div>
         <div class="ach-info">
-          <div class="ach-name">${ach.name}</div>
+          <div class="ach-name-row">
+            <div class="ach-name">${ach.name}</div>
+            ${unlocked?'<span class="ach-badge-tag">Earned</span>':''}
+          </div>
           <div class="ach-desc">${ach.description}</div>
           ${unlocked?'<div class="ach-unlocked-lbl">✅ Unlocked!</div>':''}
         </div>
@@ -738,8 +897,14 @@ function renderAchievements() {
   return `
     <div class="achiev-screen anim-fade">
       <div class="achiev-header">
-        <div class="achiev-title">🏆 Achievements</div>
-        <div class="achiev-subtitle">${unlockCount} of ${ACHIEVEMENTS.length} badges earned</div>
+        <div class="achiev-title-row">
+          <div class="achiev-title">🏆 Hunter Medals</div>
+          <div class="achiev-count-pill">${unlockCount}/${ACHIEVEMENTS.length}</div>
+        </div>
+        <div class="achiev-subtitle">${unlockCount} of ${ACHIEVEMENTS.length} badges earned (${pct}%)</div>
+        <div class="achiev-progress-track">
+          <div class="achiev-progress-fill" style="width:${pct}%"></div>
+        </div>
       </div>
       <div class="achiev-list">${achHtml}</div>
     </div>`;
@@ -815,13 +980,31 @@ function spawnConfetti() {
 // ================================================================
 document.addEventListener('DOMContentLoaded',()=>{
   loadState();
-  showScreen(state.name ? 'home' : 'splash');
 
-  // Load high-resolution map data asynchronously on startup
-  fetch('world.json')
-    .then(res => res.json())
-    .then(data => { MAP_DATA = data; })
-    .catch(err => console.error("Failed to load map data:", err));
+  // Support direct preview URLs via query params (e.g. ?specimen=glossopteris or ?screen=index)
+  const urlParams = new URLSearchParams(window.location.search);
+  const directSpecimen = urlParams.get('specimen') || urlParams.get('id');
+  const directScreen   = urlParams.get('screen');
+
+  if (directSpecimen) {
+    if (!state.name) state.name = 'Explorer';
+    showScreen('detail', { specimenId: directSpecimen, from: 'index' });
+  } else if (directScreen) {
+    if (!state.name) state.name = 'Explorer';
+    showScreen(directScreen);
+  } else {
+    showScreen(state.name ? 'home' : 'splash');
+  }
+
+  // Ensure high-resolution map data is available (prefer preloaded window.MAP_DATA)
+  if (typeof window.MAP_DATA !== 'undefined' && window.MAP_DATA) {
+    MAP_DATA = window.MAP_DATA;
+  } else {
+    fetch('world.json')
+      .then(res => res.json())
+      .then(data => { MAP_DATA = data; })
+      .catch(err => console.error("Failed to load map data:", err));
+  }
 
   // Bottom nav
   document.getElementById('bottom-nav').addEventListener('click',e=>{
