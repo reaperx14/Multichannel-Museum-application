@@ -41,6 +41,12 @@
   --gold-light:     #FDF7E8; /* Soft Butter Background */
   --gold-border:    rgba(217, 138, 27, 0.25);
 
+  /* Alert & Danger Red */
+  --red:            #E03E3E;
+  --red-hover:      #C52828;
+  --red-light:      #FDF2F2;
+  --red-border:     rgba(224, 62, 62, 0.25);
+
   /* Category Identities */
   --fossil-color:   #D98A1B;
   --fossil-bg:      #FDF7E8;
@@ -298,6 +304,22 @@ input {
   font-size: 15px;
   font-weight: 900;
   box-shadow: 0 6px 20px rgba(205, 86, 24, 0.30);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #E03E3E 0%, #B81D1D 100%);
+  color: #FFFFFF !important;
+  padding: 14px 28px;
+  font-size: 15px;
+  font-weight: 900;
+  box-shadow: 0 6px 20px rgba(224, 62, 62, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #EB4848 0%, #C92424 100%);
+  box-shadow: 0 8px 24px rgba(224, 62, 62, 0.45);
+  transform: translateY(-1px);
 }
 
 .btn-full { width: 100%; }
@@ -2592,6 +2614,17 @@ input {
 }
 .custom-modal-actions button {
   flex: 1;
+}
+#modal-confirm {
+  background: linear-gradient(135deg, #E03E3E 0%, #B81D1D 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 6px 20px rgba(224, 62, 62, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  font-weight: 800 !important;
+}
+#modal-confirm:hover {
+  background: linear-gradient(135deg, #EB4848 0%, #C92424 100%) !important;
+  box-shadow: 0 8px 24px rgba(224, 62, 62, 0.45) !important;
 }
 
 /* ================================================================

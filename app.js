@@ -56,7 +56,7 @@ function showConfirmModal(message, onConfirm) {
       <div class="custom-modal-message">${message}</div>
       <div class="custom-modal-actions">
         <button class="btn btn-secondary btn-sm" id="modal-cancel">Keep playing</button>
-        <button class="btn btn-primary btn-sm" id="modal-confirm" style="background:linear-gradient(135deg, var(--red), #8A1A1A);box-shadow:0 8px 24px rgba(255,107,107,0.3);color:white;">Yes, Reset</button>
+        <button class="btn btn-danger btn-sm" id="modal-confirm">Yes, Reset</button>
       </div>
     </div>
   `;
